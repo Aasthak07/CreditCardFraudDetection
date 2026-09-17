@@ -1,0 +1,78 @@
+# Credit Card Fraud Detection
+
+A machine learning project comparing multiple approaches to detecting fraudulent credit card transactions in a highly imbalanced dataset.
+
+## Problem
+
+Credit card fraud detection is a classic imbalanced classification problem: fraudulent transactions are extremely rare compared to legitimate ones, which means a model can achieve very high accuracy simply by predicting "not fraud" every time. This project explores how different modeling strategies — a tree-based ensemble model versus resampling techniques paired with logistic regression — perform when the goal is actually catching fraud, not just being "accurate" on paper.
+
+## Dataset
+
+- **Source:** [Credit Card Fraud Detection dataset](https://www.kaggle.com/mlg-ulb/creditcardfraud) (Kaggle, Machine Learning Group - ULB)
+- **Size:** 284,807 transactions
+- **Fraud cases:** 492 (0.17% of all transactions)
+- **Features:** 30 numerical features (`V1`–`V28` are PCA-transformed and anonymized for confidentiality, plus `Time` and `Amount`), and a binary `Class` label (1 = fraud, 0 = legitimate)
+
+The dataset is not included in this repository due to its size (150MB+) and GitHub's file size limits. Download it directly from the Kaggle link above and place `creditcard.csv` in the project root before running the notebook.
+
+## Approach
+
+Three modeling strategies were built and compared, all evaluated using **Stratified 5-Fold Cross-Validation** combined with `GridSearchCV`/hyperparameter tuning:
+
+1. **Random Forest Classifier** — trained directly on the full imbalanced dataset, without any resampling.
+2. **Logistic Regression + NearMiss (undersampling)** — the majority (legitimate) class is undersampled to balance the training data before fitting.
+3. **Logistic Regression + SMOTE (oversampling)** — synthetic minority (fraud) examples are generated to balance the training data before fitting.
+
+Accuracy alone is a misleading metric here (a model that predicts "no fraud" for every transaction would already score ~99.83% accuracy). **Precision, Recall, and F1 Score** are used as the primary evaluation metrics, since they better reflect real-world fraud detection trade-offs: Recall measures how much fraud is actually caught, while Precision measures how many fraud alerts are genuinely fraud.
+
+## Results
+
+| Model                                          | Accuracy | Precision | Recall | F1 Score  |
+| ---------------------------------------------- | -------- | --------- | ------ | --------- |
+| **Random Forest** (no resampling)              | 0.9996   | 0.975     | 0.786  | **0.870** |
+| Logistic Regression + SMOTE (oversampling)     | 0.976    | —         | 0.918  | 0.116     |
+| Logistic Regression + NearMiss (undersampling) | 0.813    | —         | 0.918  | 0.017     |
+
+_Results were obtained running the full 284,807-row dataset with 5-fold Stratified Cross-Validation and grid-searched hyperparameters for each model._
+
+### Key findings
+
+- **Random Forest, trained directly on the imbalanced data with no resampling, achieved by far the best F1 score (0.870)** — substantially outperforming both resampling-based Logistic Regression approaches. This suggests that for this dataset, an ensemble model's ability to learn from the minority class directly was more effective than manually rebalancing the training data.
+- **NearMiss (undersampling) achieved high recall (0.918) but extremely poor precision**, dragging F1 down to 0.017. Aggressively removing legitimate transactions to balance classes caused the model to over-flag legitimate transactions as fraud — a trade-off that would be operationally very costly in a real fraud system (huge false-positive rates mean overwhelmed investigation teams and frustrated customers).
+- **SMOTE (oversampling) improved F1 roughly 7x over NearMiss (0.116 vs 0.017)** at the same recall level (0.918), showing that generating synthetic fraud examples preserved more of the model's precision than simply discarding legitimate transactions.
+- Overall, this comparison highlights a core lesson in fraud/risk analytics: **the "best" model depends entirely on which trade-off (precision vs. recall) matters more for the business**, and blindly optimizing for recall (catching all fraud) can severely damage precision if not handled carefully.
+
+## What I'd improve in production
+
+- **Real-world features**: the dataset's `V1`–`V28` features are anonymized PCA components, which limits interpretability. A production system would benefit from engineered features like transaction velocity, merchant category, device/location fingerprinting, and customer transaction history.
+- **Cost-sensitive evaluation**: rather than optimizing F1 alone, a real fraud system should incorporate the actual business cost of a false negative (missed fraud) versus a false positive (blocked legitimate transaction) into the evaluation and threshold-tuning process.
+- **Threshold tuning**: rather than using each model's default classification threshold, tuning the decision threshold explicitly (e.g., via a precision-recall curve) could further improve the practical trade-off for each approach.
+- **Ensemble/stacking**: combining Random Forest's strong precision with SMOTE's balanced recall via model stacking or blending could potentially outperform any single approach.
+
+## Tech Stack
+
+- Python, pandas, NumPy
+- scikit-learn (Logistic Regression, Random Forest, GridSearchCV, StratifiedKFold)
+- imbalanced-learn (NearMiss, SMOTE)
+- matplotlib, seaborn (EDA and visualization)
+
+## How to run
+
+```bash
+# 1. Clone this repository
+git clone https://github.com/Aasthak07/CreditCardFraudDetection.git
+cd CreditCardFraudDetection
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Download creditcard.csv from Kaggle and place it in this folder
+# https://www.kaggle.com/mlg-ulb/creditcardfraud
+
+# 4. Open and run the notebook
+jupyter notebook CreditCardDetection_PythonCode.ipynb
+```
+
+## Acknowledgments
+
+Built while learning and adapting concepts from an open-source fraud detection tutorial, with independent modifications: an added Random Forest baseline comparison, cleanup for modern pandas/seaborn/scikit-learn compatibility, and a written analysis of the precision-recall trade-offs across models.
